@@ -1,0 +1,205 @@
+#!/bin/bash
+# modprobe snd-aloop
+
+function process_request {
+	echo ffmpeg -hide_banner -vaapi_device /dev/dri/renderD128 -video_size ${com_opt[dimension]} ${com_opt[framerate]} ${com_opt[time]} -f x11grab -i :0.0${1} ${com_opt[audio_a]} -map 0:0 -vf \"hwupload,scale_vaapi=format=nv12\" -c:v hevc_vaapi -qp 24  ${com_opt[audio_b]} /ramdisk/output-${com_opt[timestamp]}${2}.mp4 2>&1 >/dev/null
+	ffmpeg -hide_banner -vaapi_device /dev/dri/renderD128 -video_size ${com_opt[dimension]} ${com_opt[framerate]} ${com_opt[time]} -f x11grab -i :0.0${1} ${com_opt[audio_a]} -map 0:0 -vf "hwupload,scale_vaapi=format=nv12" -c:v hevc_vaapi -qp 24  ${com_opt[audio_b]} /ramdisk/output-${com_opt[timestamp]}${2}.mp4 2>&1 >/dev/null
+}
+
+declare -A com_opt
+declare -a trim_frame disp_dim_x disp_dim_y disp_offset_x disp_offset_y disp_id
+while read line
+do
+	temp_info=( ${line} )
+	local_offset=${#disp_id[@]}
+	disp_id[${local_offset}]="${temp_info[0]}"
+	disp_dim_x[${local_offset}]="${temp_info[1]}"
+	disp_dim_y[${local_offset}]="${temp_info[2]}"
+	disp_offset_x[${local_offset}]="${temp_info[3]}"
+	disp_offset_y[${local_offset}]="${temp_info[4]}"
+done < <(xrandr | grep \ connected | sed "s/\([^[:space:]]*\)[^0-9]*\([0-9]*\)x\([0-9]*\)+\([0-9]*\)+\([0-9]*\) .*/\1 \2 \3 \4 \5/")
+
+for s in ${!disp_id[@]}
+do
+	echo "${s}: ${disp_id[${s}]} : ${disp_dim_x[${s}]}x${disp_dim_y[${s}]} + ${disp_offset_x[${s}]} + ${disp_offset_y[${s}]}"
+done
+echo
+
+com_opt[framerate]="-framerate 60"
+com_opt[dimension]="${disp_dim_x[0]}x${disp_dim_y[0]}"
+com_opt[audio_a]=""
+com_opt[audio_b]=""
+com_opt[timestamp]="$(date +%s)"
+com_opt[fade_in]=0
+com_opt[fade_out]=0
+com_opt[cut_format]="libx264"
+com_opt[trim_speed]="1"
+
+while [ "${1:0:1}" == "-" ]
+do
+	case ${1:1} in
+		a)	com_opt[audio_a]="-f alsa -ac ${3:-2} -i hw:${2:-1,1}"
+			com_opt[audio_b]="-map 1:0"
+			shift 2
+			;;
+		t)
+			com_opt[time]="-t ${2}"
+			shift
+			;;
+		f)	com_opt[framerate]="-framerate ${2}"
+			shift
+			;;
+		d)
+			com_opt[dimension]="${2}"
+			shift
+			;;
+		i)
+			com_opt[id]=${2}
+			shift
+			;;
+		gt)
+			gnome-terminal --geometry=200x40+$(( ${com_opt[id]} * 1920 + 60 ))+270
+			exit 0
+			;;
+		cf)
+			com_opt[fade_in]=${2}
+			com_opt[fade_out]=${2}
+			shift
+			;;
+		cfi)
+			com_opt[fade_in]=${2}
+			shift
+			;;
+		cfi-)
+			com_opt[fade_in]=${2}
+			com_opt[fade_out]=0
+			shift
+			;;
+		cfo)
+			com_opt[fade_out]=${2}
+			shift
+			;;
+		cfo-)
+			com_opt[fade_out]=${2}
+			com_opt[fade_in]=0
+			shift
+			;;
+		cut-f)
+			com_opt[cut_format]="${2}"
+			shift
+			;;
+		cs)
+			com_opt[trim_speed]="${2}"
+			shift
+			;;
+		cut)
+			local_input=0
+			local_range="${2}"
+			context_IFS="${IFS}"
+			if [ ${#2} -ne $(echo -n "${2}" |tr -d "_" | wc -c) ]
+			then
+				IFS="_"
+				local_val=( ${2} )
+				local_input=${local_val[0]}
+				local_range="${local_val[1]}"
+				unset local_val
+			fi
+			trim_frame_id=${#trim_frame[@]}
+			IFS="-"
+			context_time=( ${local_range} )
+
+			if [ ${#context_time[@]} -eq 1 ] 
+			then
+				context_time[1]="" 
+			else
+				[ ${com_opt[fade_out]} -ne 0 ] && context_time[1]=$(( ${context_time[1]} + ${com_opt[fade_out]} ))
+			fi
+			if [ ${com_opt[fade_in]} -ne 0 -a "${context_time[0]}" != "" ]
+			then
+				[ ${context_time[0]:-0} -le ${com_opt[fade_in]:-0} ] && context_time[0]=0 || \
+					context_time[0]=$(( ${context_time[0]} - ${com_opt[fade_in]} ))
+			fi
+			[ ${context_time[0]:-0} -lt ${context_time[1]:-0} ] && \
+				context_time[${#context_time[@]}]=$(( ${context_time[1]:-0} - ${context_time[0]:-0} )) || \
+				context_time[${#context_time[@]}]=$(( ${context_time[0]:-0} - ${context_time[1]:-0} ))
+
+                        if [ "${context_time[0]}" == "" ]
+                        then
+				trim_frame[${trim_frame_id}]="[${local_input}:v]trim=duration=${context_time[2]:-0}"
+
+                        else if [ "${context_time[1]}" == "" ]
+                                then
+					trim_frame[${trim_frame_id}]="[${local_input}:v]trim=start=${context_time[0]},setpts=PTS-STARTPTS"
+                                else
+                                        trim_frame[${trim_frame_id}]="[${local_input}:v]trim=start=${context_time[0]}:end=${context_time[1]},setpts=PTS-STARTPTS"
+                                fi
+                        fi
+			[ "${com_opt[trim_speed]}" != "1" ] && trim_frame[${trim_frame_id}]="${trim_frame[${trim_frame_id}]}[o-t-${trim_frame_id}-s]; [o-t-${trim_frame_id}-s]setpts=${com_opt[trim_speed]}*PTS"
+			[ ${com_opt[fade_in]} -gt 0 ] && trim_frame[${trim_frame_id}]="${trim_frame[${trim_frame_id}]}[o-t-${trim_frame_id}-i]; [o-t-${trim_frame_id}-i]fade=in:st=0:d=${com_opt[fade_in]}"
+			[ ${com_opt[fade_out]} -gt 0 ] && trim_frame[${trim_frame_id}]="${trim_frame[${trim_frame_id}]}[o-t-${trim_frame_id}-o]; [o-t-${trim_frame_id}-o]fade=out:st=$(( ${context_time[2]} - ${com_opt[fade_out]} )):d=${com_opt[fade_out]}"
+			IFS="${context_IFS}"
+			unset trim_frame_id local_input local_range context_time
+
+			shift
+			;;
+	esac
+	shift
+done
+
+if [ ${#trim_frame[@]} -gt 0 ]
+then
+	local_input=""
+	while [ "${1}" != "" ]
+	do
+		local_input="${local_input} -i ${1}"
+		shift
+	done
+        context_out=0
+        context_iteration=0
+        context_filter=""
+        while [ ${context_iteration} -lt ${#trim_frame[@]} ]
+        do
+                context_out=$(( ${context_out} + 1 ))
+                [ "${context_filter}" != "" ] && context_filter="${context_filter}; "
+                context_filter="${context_filter}${trim_frame[$context_iteration]}[o${context_out}]"
+                if [ ${context_out} -gt 1 ]
+                then
+                        context_out=$(( ${context_out} + 1 ))
+                        context_filter="${context_filter}; [o$(( ${context_out} - 2 ))][o$(( ${context_out} -1 ))]concat[o${context_out}]"
+                fi
+                context_iteration=$(( ${context_iteration} + 1 ))
+        done
+
+	echo "ffmpeg -hide_banner ${local_input} -filter_complex \"${context_filter}\" -map [o${context_out}] -c:v ${com_opt[cut_format]}  trim-$(date +%s).mp4"
+	echo
+	echo "ffmpeg -hide_banner -init_hw_device vaapi=gpu -filter_hw_device gpu ${local_input} -filter_complex \"${context_filter};[o${context_out}]hwupload\" -c:v hevc_vaapi -qp 18 trim-$(date +%s).mp4"
+	sleep 3
+	ffmpeg -hide_banner -init_hw_device vaapi=gpu -filter_hw_device gpu ${local_input} -filter_complex "${context_filter};[o${context_out}]hwupload" -c:v hevc_vaapi -qp 18 trim-$(date +%s).mp4
+        exit 0
+fi
+
+if [ "${1}" == "" ]
+then
+	if [ "${com_opt[id]}" != "" ]
+	then
+		localIFS="${IFS}"
+		IFS="x"
+		localVal=( ${com_opt[dimension]} )
+		IFS=${localIFS}
+		process_request "+$(( ${localVal[0]} * ${com_opt[id]} )),0" "-${com_opt[id]}"
+		unset localIFS localVal
+	else
+		process_request "" "-0"
+	fi
+else
+	while [ "${1}" != "" ]
+	do
+		localIFS="${IFS}"
+		IFS="x"
+		localVal=( ${com_opt[dimension]} )
+		IFS=${localIFS}
+		process_request "+$(( ${localVal[0]} * ${1} )),0" "-${1}" &
+		unset localIFS localVal
+		shift
+	done
+fi

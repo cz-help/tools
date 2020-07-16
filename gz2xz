@@ -1,0 +1,92 @@
+#!/bin/bash
+option=""
+
+while [ "${1:0:1}" == "-" ]
+do
+	case ${1:1} in
+		m)
+			option="${option} -maxdepth ${2}"
+			shift
+			;;
+	esac
+	shift
+done
+
+total_count=$(find ${option} -name "*.gz" | wc -l)
+current=1
+o_block=0
+o_file=0
+n_block=0
+n_file=0
+if [ ${total_count} -gt 0 ]
+then
+	pwd
+	for s in $(find ${option} -name "*.gz")
+	do
+		l_path=$(dirname $s)
+		l_name=$(basename $s .gz)
+		l_s="${l_path}/${l_name}"
+		if [ ${o_block} -gt 0 ]
+		then
+			echo "${l_s}.gz (${current} / ${total_count} - allocated size : $(( 100 * ${n_block} / ${o_block} )) % ; data size : $(( 100 * ${n_file} / ${o_file} )) % )"
+		else
+			echo "${l_s}.gz (${current} / ${total_count} )"
+		fi
+		gunzip -c ${l_s}.gz | xz -z9evc -T 2 >${l_s}.xz
+		if  [[ $? -eq 0 ]]
+		then
+			touch -r ${l_s}.gz ${l_s}.xz
+			[ $(id -u) -eq 0 ] && chown $(stat --printf=%u ${l_s}.gz):$(stat --printf=%g ${l_s}.gz) ${l_s}.xz
+			chmod $(stat --printf=%a ${l_s}.gz) ${l_s}.xz
+			ls -la ${l_s}.*
+			o_block=$(( ${o_block} + $(stat --printf %b ${l_s}.gz) * $(stat --printf %B ${l_s}.gz) ))
+			o_file=$(( ${o_file} + $(stat --printf %s ${l_s}.gz) ))
+			n_block=$(( ${n_block} + $(stat --printf %b ${l_s}.xz) * $(stat --printf %B ${l_s}.xz) ))
+                        n_file=$(( ${n_file} + $(stat --printf %s ${l_s}.xz) ))
+			rm ${l_s}.gz
+		else
+			rm ${l_s}.xz
+		fi	
+		current=$(( ${current} + 1 ))
+
+	done
+fi
+total_count=$(find ${option} -name "*.tgz" | wc -l)
+current=1
+if [ ${total_count} -gt 0 ]
+then
+	pwd
+	for s in $(find ${option} -name "*.tgz")
+	do
+		l_path=$(dirname $s)
+		l_name=$(basename $s .tgz)
+		l_s="${l_path}/${l_name}"
+                if [ ${o_block} -gt 0 ]
+                then
+                        echo "${l_s}.tgz (${current} / ${total_count} - allocated size : $(( 100 * ${n_block} / ${o_block} )) % ; data size : $(( 100 * ${n_file} / ${o_file} )) % )"
+                else
+                        echo "${l_s}.tgz (${current} / ${total_count} )"
+                fi
+
+		gunzip -c ${l_s}.tgz | xz -z9evc >${l_s}.tar.xz
+		if  [[ $? -eq 0 ]]
+		then
+			touch -r ${l_s}.tgz ${l_s}.tar.xz
+			[ $(id -u) -eq 0 ] && chown $(stat --printf=%u ${l_s}.tgz):$(stat --printf=%g ${l_s}.tgz) ${l_s}.tar.xz
+			chmod $(stat --printf=%a ${l_s}.tgz) ${l_s}.tar.xz
+			ls -la ${l_s}.*
+			o_block=$(( ${o_block} + $(stat --printf %b ${l_s}.tgz) * $(stat --printf %B ${l_s}.tgz) ))
+			o_file=$(( ${o_file} + $(stat --printf %s ${l_s}.tgz) ))
+			n_block=$(( ${n_block} + $(stat --printf %b ${l_s}.xz) * $(stat --printf %B ${l_s}.xz) ))
+                        n_file=$(( ${n_file} + $(stat --printf %s ${l_s}.xz) ))
+			rm ${l_s}.tgz
+		else
+			rm ${l_s}.tar.xz
+		fi
+		current=$(( ${current} + 1 ))
+	done
+fi
+[ ${o_block} -gt 0 ] && echo "Total - allocated size : $(( 100 * ${n_block} / ${o_block} )) % ; data size : $(( 100 * ${n_file} / ${o_file} )) % )"
+echo "--------------"
+echo "original : ${o_file} / ${o_block} ; new : ${n_file} / ${n_block}"
+

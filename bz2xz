@@ -1,0 +1,43 @@
+#!/bin/bash
+total_count=$(find -name "*.bz2" | wc -l)
+current=1
+o_block=0
+o_file=0
+n_block=0
+n_file=0
+if [ ${total_count} -gt 0 ]
+then
+	pwd
+	for s in $(find -name "*.bz2")
+	do
+		l_path=$(dirname $s)
+		l_name=$(basename $s .bz2)
+		l_s="${l_path}/${l_name}"
+		if [ ${o_block} -gt 0 ]
+		then
+			echo "${l_s}.bz2 (${current} / ${total_count} - allocated size : $(( 100 * ${n_block} / ${o_block} )) % ; data size : $(( 100 * ${n_file} / ${o_file} )) % )"
+		else
+			echo "${l_s}.bz2 (${current} / ${total_count} )"
+		fi
+		bunzip2 -c ${l_s}.bz2 | xz -z9evc >${l_s}.xz
+		if  [[ $? -eq 0 ]]
+		then
+			touch -r ${l_s}.bz2 ${l_s}.xz
+			[ $(id -u) -eq 0 ] && chown $(stat --printf=%u ${l_s}.bz2):$(stat --printf=%g ${l_s}.bz2) ${l_s}.xz
+			chmod $(stat --printf=%a ${l_s}.bz2) ${l_s}.xz
+			ls -la ${l_s}.*
+			o_block=$(( ${o_block} + $(stat --printf %b ${l_s}.bz2) * $(stat --printf %B ${l_s}.bz2) ))
+			o_file=$(( ${o_file} + $(stat --printf %s ${l_s}.bz2) ))
+			n_block=$(( ${n_block} + $(stat --printf %b ${l_s}.xz) * $(stat --printf %B ${l_s}.xz) ))
+                        n_file=$(( ${n_file} + $(stat --printf %s ${l_s}.xz) ))
+			rm ${l_s}.bz2
+		else
+			rm ${l_s}.xz
+		fi	
+		current=$(( ${current} + 1 ))
+
+	done
+fi
+[ ${o_block} -gt 0 ] && echo "Total - allocated size : $(( 100 * ${n_block} / ${o_block} )) % ; data size : $(( 100 * ${n_file} / ${o_file} )) % )"
+echo "--------------"
+echo "original : ${o_file} / ${o_block} ; new : ${n_file} / ${n_block}"
