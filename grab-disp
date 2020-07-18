@@ -2,8 +2,8 @@
 # modprobe snd-aloop
 
 function process_request {
-	echo ffmpeg -hide_banner -vaapi_device /dev/dri/renderD128 -video_size ${com_opt[dimension]} ${com_opt[framerate]} ${com_opt[time]} -f x11grab -i :0.0${1} ${com_opt[audio_a]} -map 0:0 -vf \"hwupload,scale_vaapi=format=nv12\" -c:v hevc_vaapi -qp 24  ${com_opt[audio_b]} /ramdisk/output-${com_opt[timestamp]}${2}.mp4 2>&1 >/dev/null
-	ffmpeg -hide_banner -vaapi_device /dev/dri/renderD128 -video_size ${com_opt[dimension]} ${com_opt[framerate]} ${com_opt[time]} -f x11grab -i :0.0${1} ${com_opt[audio_a]} -map 0:0 -vf "hwupload,scale_vaapi=format=nv12" -c:v hevc_vaapi -qp 24  ${com_opt[audio_b]} /ramdisk/output-${com_opt[timestamp]}${2}.mp4 2>&1 >/dev/null
+	echo ffmpeg -hide_banner -vaapi_device /dev/dri/renderD128 -video_size ${com_opt[dimension]} ${com_opt[framerate]} ${com_opt[time]} -f x11grab -i :0.0${1} ${com_opt[audio_a]} -map 0:0 -vf \"hwupload,scale_vaapi=format=nv12\" -c:v ${3:-hevc}_vaapi -qp 24  ${com_opt[audio_b]} /ramdisk/output-${com_opt[timestamp]}${2}.mp4 2>&1 >/dev/null
+	ffmpeg -hide_banner -vaapi_device /dev/dri/renderD128 -video_size ${com_opt[dimension]} ${com_opt[framerate]} ${com_opt[time]} -f x11grab -i :0.0${1} ${com_opt[audio_a]} -map 0:0 -vf "hwupload,scale_vaapi=format=nv12" -c:v ${3:-hevc}_vaapi -qp 24  ${com_opt[audio_b]} /ramdisk/output-${com_opt[timestamp]}${2}.mp4 2>&1 >/dev/null
 }
 
 declare -A com_opt
@@ -29,6 +29,7 @@ com_opt[framerate]="-framerate 60"
 com_opt[dimension]="${disp_dim_x[0]}x${disp_dim_y[0]}"
 com_opt[audio_a]=""
 com_opt[audio_b]=""
+com_opt[codec]=""
 com_opt[timestamp]="$(date +%s)"
 com_opt[fade_in]=0
 com_opt[fade_out]=0
@@ -38,9 +39,13 @@ com_opt[trim_speed]="1"
 while [ "${1:0:1}" == "-" ]
 do
 	case ${1:1} in
-		a)	com_opt[audio_a]="-f alsa -ac ${3:-2} -i hw:${2:-1,1}"
+		a)	com_opt[audio_a]="-f alsa -ac ${3:-2} -i hw:${2:-1},1"
 			com_opt[audio_b]="-map 1:0"
 			shift 2
+			;;
+		c)
+			com_opt[codec]="${2}"
+			shift
 			;;
 		t)
 			com_opt[time]="-t ${2}"
@@ -186,7 +191,7 @@ then
 		IFS="x"
 		localVal=( ${com_opt[dimension]} )
 		IFS=${localIFS}
-		process_request "+$(( ${localVal[0]} * ${com_opt[id]} )),0" "-${com_opt[id]}"
+		process_request "+$(( ${localVal[0]} * ${com_opt[id]} )),0" "-${com_opt[id]}" "${com_opt[codec]}"
 		unset localIFS localVal
 	else
 		process_request "" "-0"
@@ -198,7 +203,7 @@ else
 		IFS="x"
 		localVal=( ${com_opt[dimension]} )
 		IFS=${localIFS}
-		process_request "+$(( ${localVal[0]} * ${1} )),0" "-${1}" &
+		process_request "+$(( ${localVal[0]} * ${1} )),0" "-${1}" "${com_opt[codec]}" &
 		unset localIFS localVal
 		shift
 	done
