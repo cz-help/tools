@@ -51,11 +51,12 @@ fi
 
 [ ${use_timestamp} -eq 1 ] && work_timestamp="$(date +%s)/" || work_timestamp=""
 work_dir="${work_timestamp}$(tar -tzf ${tmp_dir}/${file_name} | head -1 | sed "s/^\([^\/]*\)\/.*/\1/")"
-mkdir ${tmp_dir}/${work_timestamp}
+[ ! -e ${tmp_dir}/${work_timestamp} ] && mkdir ${tmp_dir}/${work_timestamp}
 
 echo "Unpacking ${tmp_dir}/${file_name} to ${tmp_dir}/${work_timestamp}"
 echo
 
+[ -e ${tmp_dir}/${work_dir} ] && local_cleanup=0 || local_cleanup=1
 tar -xz -C ${tmp_dir}/${work_timestamp} -f ${tmp_dir}/${file_name}
 JAVA_HOME=${tmp_dir}/${work_dir}
 PATH=${tmp_dir}/${work_dir}/bin:${PATH}
@@ -70,3 +71,4 @@ cat ${tmp_dir}/${work_dir}-jre/release
 echo
 echo -n "\"JRE\" environment is ready on location : "
 du -sh ${tmp_dir}/${work_dir}-jre | sed "s/^\([^[:space:]]*\)[[:space:]]*\(.*\)$/\2 (\1)/"
+[ ${local_cleanup} -eq 1 ] && rm -rf ${tmp_dir}/${work_dir}
