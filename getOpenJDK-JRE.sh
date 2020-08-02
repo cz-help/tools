@@ -89,10 +89,10 @@ tar -xz -C ${tmp_dir}/${work_timestamp} -f ${tmp_dir}/${file_name}
 JAVA_HOME=${tmp_dir}/${work_dir}
 PATH=${tmp_dir}/${work_dir}/bin:${PATH}
 
-echo "Preparing \"JRE\" environment (using jlink aplication) to ${tmp_dir}/${jre_dir} )" 
-echo jlink --no-header-files --no-man-pages --compress=2 --add-modules ALL-MODULE-PATH  --output ${tmp_dir}/${jre_dir}
+echo "Preparing \"JRE\" environment (using jlink aplication) to ${tmp_dir}/${jre_dir} (JAVA_HOME: ${JAVA_HOME})" 
+echo ${tmp_dir}/${work_dir}/bin/jlink --no-header-files --no-man-pages --compress=2 --add-modules ALL-MODULE-PATH  --output ${tmp_dir}/${jre_dir}
 
-jlink --no-header-files --no-man-pages --compress=2 --add-modules ALL-MODULE-PATH  --output ${tmp_dir}/${jre_dir}
+${tmp_dir}/${work_dir}/bin/jlink --no-header-files --no-man-pages --compress=2 --add-modules ALL-MODULE-PATH  --output ${tmp_dir}/${jre_dir}
 
 echo
 cat ${tmp_dir}/${jre_dir}/release
