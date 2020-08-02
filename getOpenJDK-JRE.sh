@@ -66,7 +66,7 @@ then
 		echo
 fi
 
-if [ "$(<${tmp_dir}/${file_name}.sha256)" == "$(sha256sum ${tmp_dir}/${file_name} | sed "s/\([^[:space:]]*\).*/\1/" | tr -d [[:space:]])" ]
+if [ "$(cut -c 1-64 ${tmp_dir}/${file_name}.sha256)" == "$(sha256sum ${tmp_dir}/${file_name} | cut -c 1-64)" ]
 then
 	echo -n "The file is locally available : "
 	du -sh ${tmp_dir}/${file_name} | sed "s/^\([^[:space:]]*\)[[:space:]]*\(.*\)$/\2 (\1)/"
