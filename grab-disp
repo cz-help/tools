@@ -66,6 +66,11 @@ do
 			gnome-terminal --geometry=200x40+$(( ${com_opt[id]} * 1920 + 60 ))+270
 			exit 0
 			;;
+		gtc)
+			gnome-terminal --geometry=185x15+$(( ${com_opt[id]} * 1920 ))+0
+			gnome-terminal --geometry=185x15+$(( ${com_opt[id]} * 1920 ))+360
+			exit 0
+			;;
 		cf)
 			com_opt[fade_in]=${2}
 			com_opt[fade_out]=${2}

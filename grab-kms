@@ -1,0 +1,84 @@
+#!/bin/bash
+
+declare -a output_name output_dim chekpoint_x checkpoint_y
+
+local_count=0
+local_filter=""
+local_output=""
+[ -e /ramdisk ] && local_path="/ramdisk" || local_path="/tmp"
+local_prefix="${1:-out}"
+local_timestamp="$(date +%s)"
+local_command=""
+
+while [ "${1:0:1}" == "-" ]
+do
+	case ${1:1} in
+		d)
+			local_path="${2}"
+			shift
+			;;
+		c)
+			checkpoint_x[${#checkpoint_x[@]}]=${2}
+			checkpoint_y[${#checkpoint_y[@]}]=${3}
+			shift 2
+			;;
+	esac
+	shift
+done
+
+echo "- - - - - - - - - - - - - -" >&2
+xrandr | grep current | sed "s/.*current \([0-9]*\) x \([0-9]*\),.*/Screen: \1x\2/" >&2
+
+while read line
+do
+	echo -n ${line} >&2
+	parsed_line=( ${line} )
+	check_pass=1
+	if [ ${#checkpoint_x[@]} -gt 0 ]
+	then
+		check_pass=0
+		bck_IFS="${IFS}"
+		IFS=":"
+		check_val=( ${parsed_line[0]} )
+		echo -n " (x: ${check_val[2]} - $(( ${check_val[0]} + ${check_val[2]} )) / y: ${check_val[3]} - $(( ${check_val[1]} + ${check_val[3]} )))" >&2
+		i=0
+		while [ ${#checkpoint_x[@]} -gt ${i} ]
+		do
+			[ ${checkpoint_x[${i}]} -ge ${check_val[2]} -a ${checkpoint_x[${i}]} -le $(( ${check_val[0]} + ${check_val[2]} )) -a \
+				${checkpoint_y[${i}]} -ge ${check_val[3]} -a ${checkpoint_y[${i}]} -le $(( ${check_val[1]} + ${check_val[3]} )) ] \
+					&& check_pass=1
+			i=$(( ${i} + 1 ))
+		done
+		IFS="${bck_IFS}"
+	fi
+	[ ${check_pass} -eq 0 ] && echo " : skip " >&2 && continue
+	echo " : processing" >&2
+	local_filter="${local_filter};[o${local_count}]crop=${parsed_line[0]},scale_vaapi=w=1920:h=1080:format=nv12[o${local_count}a]"
+	output_name[${local_count}]="${parsed_line[1]}"
+	output_dim[${local_count}]="${parsed_line[0]//:/_}"
+	local_count=$(( ${local_count} + 1 ))
+done < <( xrandr | grep \ connected\  | sed "s/\([^[:space:]]*\)[^0-9]*\([^x]*\)x\([^+]*\)+\([^+]*\)+\([^[:space:]]*\).*/\2:\3:\4:\5 \1/" )
+echo "- - - - - - - - - - - - - -" >&2
+echo >&2
+
+local_command="ffmpeg -device /dev/dri/card0 -f kmsgrab -i - -filter_complex \"hwmap=derive_device=vaapi,split=${local_count}"
+
+i=0
+while [ $i -lt ${local_count} ]
+do
+	local_command="${local_command}[o${i}]"
+	local_output="${local_output} -map [o${i}a] -c:v hevc_vaapi -qp 24 ${local_path}/${local_prefix}_${local_timestamp}-${output_dim[${i}]}-${output_name[${i}]}.mp4"
+	i=$(( ${i} + 1 ))
+done
+
+local_command="${local_command}$local_filter\" ${local_output}"
+
+echo "#!/bin/bash"
+echo ${local_command}
+
+echo >&2 
+echo " - - - - Capabilities - - - - -" >&2
+echo "sudo setcap cap_sys_admin+ep $(which ffmpeg)" >&2
+echo "sudo setcap -r $(which ffmpeg)" >&2
+echo "getcap $(which ffmpeg)" >&2
+
