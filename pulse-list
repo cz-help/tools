@@ -1,0 +1,137 @@
+#!/bin/bash
+local_debug=0
+local_options=1
+focus_app=""
+def_sink=""
+def_source=""
+
+function getSinks {
+	local_final_line=""
+	if [ ${1} -ne 0 ] 
+	then
+		echo "pacmd list-sinks | grep -e name: | sed \"s/[^<]*<\\([^>]*\\).*/\\1/\""
+		echo
+	fi
+	while read line
+	do
+		if [ "${3}" == "" ]
+		then
+			[ "${line}" == "${2}" ] && echo "* ${line}" || echo "  ${line}"
+		else 
+			[ "${line}" == "${2}" ] && local_final_line="pacmd move-sink-input ${3} ${line}"
+                        echo pacmd move-sink-input ${3} ${line}
+		fi
+	done < <(pacmd list-sinks | grep -e name: | sed "s/[^<]*<\([^>]*\).*/\1/")
+	[ "${3}" != "" ] && echo && echo "* ${local_final_line}"
+}
+
+function getSources {
+        local_final_line=""
+        if [ ${1} -ne 0 ] 
+	then
+		echo "pacmd list-sources| grep -e name: | sed \"s/[^<]*<\\([^>]*\\).*/\\1/\""
+		echo
+	fi
+        while read line
+        do
+                if [ "${3}" == "" ]
+                then
+                        [ "${line}" == "${2}" ] && echo "* ${line}" || echo "  ${line}"
+                else
+                        [ "${line}" == "${2}" ] && local_final_line="pacmd move-source-output ${3} ${line}"
+			echo pacmd move-source-output ${3} ${line}
+                fi
+        done < <(pacmd list-sources | grep -e name: | sed "s/[^<]*<\([^>]*\).*/\1/")
+        [ "${3}" != "" ] && echo && echo "* ${local_final_line}"
+
+}
+
+while [ "${1:0:1}" == "-" ]
+do
+	case ${1:1} in
+		d)
+			local_debug=1
+			;;
+		o)
+			local_options=0
+			;;
+	esac
+	shift
+done
+
+[ "${1}" != "" ] && focus_app="${1}"
+
+while read line
+do
+	parseLine=( ${line} )
+	[ "${parseLine[1]}" == "sink" ] && def_sink="${parseLine[3]}"
+	[ "${parseLine[1]}" == "source" ] && def_source="${parseLine[3]}"
+done < <(pacmd info | grep ^Default)
+
+
+echo
+echo "list-source-outputs:"
+echo " - - - - - - - - - -"
+
+if [ "${focus_app}" == "" ]
+then
+	if [ ${local_options} -eq 1 ]
+	then
+		getSources ${local_debug} ${def_source} ""
+		echo " - - - - - - - - - -"
+	fi
+	[ ${local_debug} -ne 0 ] && echo "pacmd list-source-outputs | grep -e index -e application.name\\  -e source: | sed \"{N;s/\\n/ /};{N;s/\\n/ /};s/[^0-9]*\\([0-9]*\\)[^<]*<\\([^>]*\\)>[^\\\"]*\\\"\([^\\\"]*\\).*/\\1 \\3 - \\2/\""
+	pacmd list-source-outputs | grep -e index -e application.name\  -e source: | sed "{N;s/\n/ /};{N;s/\n/ /};s/[^0-9]*\([0-9]*\)[^<]*<\([^>]*\)>[^\"]*\"\([^\"]*\).*/\1 \3 - \2/"
+	echo
+	echo "i.e. 154 xyz :"
+	echo "pacmd move-source-output 154 <new_input>"
+else
+	focus_id=0
+	[ ${local_debug} -ne 0 ] && echo &&echo "pacmd list-source-outputs | grep -e index -e application.name\\  -e source: | sed \"{N;s/\\n/ /};{N;s/\\n/ /};s/[^0-9]*\\([0-9]*\\)[^<]*<\\([^>]*\\)>[^\\\"]*\\\"\([^\\\"]*\\).*/\\1:\\3:\\2/\""
+	while read line
+	do
+		IFSbck="${IFS}"
+		IFS=":"
+		parseLine=(${line})
+		IFS="${IFSbck}"
+		if [ "${parseLine[1]}" == "${focus_app}" ]
+		then
+			echo "${parseLine[0]} ${parseLine[1]} - ${parseLine[2]}"
+			focus_id=${parseLine[0]}
+		fi
+	done < <(pacmd list-source-outputs | grep -e index -e application.name\  -e source: | sed "{N;s/\n/ /};{N;s/\n/ /};s/[^0-9]*\([0-9]*\)[^<]*<\([^>]*\)>[^\"]*\"\([^\"]*\).*/\1:\3:\2/")
+	[ "${focus_id}" != 0 ] && echo && getSources ${local_debug} ${def_source} ${focus_id}
+fi
+
+echo
+echo "list-sink-inputs:"
+echo " - - - - - - - - -"
+if [ "${focus_app}" == "" ]
+then
+	if [ ${local_options} -eq 1 ]
+	then
+		getSinks ${local_debug} ${def_sink} ""
+		echo " - - - - - - - - -"
+	fi
+	[ ${local_debug} -ne 0 ] && echo && echo "pacmd list-sink-inputs | grep -e index -e application.name\\  -e sink: | sed \"{N;s/\\n/ /};{N;s/\\n/ /};s/[^0-9]*\\([0-9]*\\)[^<]*<\\([^>]*\\)>[^\\\"]*\\\"\\([^\\\"]*\\).*/\\1 \\3 - \\2/\""
+	pacmd list-sink-inputs | grep -e index -e application.name\  -e sink: | sed "{N;s/\n/ /};{N;s/\n/ /};s/[^0-9]*\([0-9]*\)[^<]*<\([^>]*\)>[^\"]*\"\([^\"]*\).*/\1 \3 - \2/"
+	echo
+	echo "i.e. 768 xyz:"
+	echo "pacmd move-sink-input 768 <new output>"
+else
+        focus_id=0
+	[ ${local_debug} -ne 0 ] && echo && echo "pacmd list-sink-inputs | grep -e index -e application.name\\  -e sink: | sed \"{N;s/\\n/ /};{N;s/\\n/ /};s/[^0-9]*\\([0-9]*\\)[^<]*<\\([^>]*\\)>[^\\\"]*\\\"\\([^\\\"]*\\).*/\\1:\\3:\\2/\""
+	while read line
+        do
+                IFSbck="${IFS}"
+                IFS=":"
+                parseLine=(${line})
+                IFS="${IFSbck}"
+                if [ "${parseLine[1]}" == "${focus_app}" ]
+                then
+                        echo "${parseLine[0]} ${parseLine[1]} - ${parseLine[2]}"
+			focus_id=${parseLine[0]}
+                fi
+	done < <(pacmd list-sink-inputs | grep -e index -e application.name\  -e sink: | sed "{N;s/\n/ /};{N;s/\n/ /};s/[^0-9]*\([0-9]*\)[^<]*<\([^>]*\)>[^\"]*\"\([^\"]*\).*/\1:\3:\2/")
+        [ "${focus_id}" != 0 ] && echo && getSinks ${local_debug} ${def_sink} ${focus_id}
+fi

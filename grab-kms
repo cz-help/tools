@@ -6,9 +6,9 @@ local_count=0
 local_filter=""
 local_output=""
 [ -e /ramdisk ] && local_path="/ramdisk" || local_path="/tmp"
-local_prefix="${1:-out}"
 local_timestamp="$(date +%s)"
 local_command=""
+local_run=0
 
 while [ "${1:0:1}" == "-" ]
 do
@@ -22,11 +22,17 @@ do
 			checkpoint_y[${#checkpoint_y[@]}]=${3}
 			shift 2
 			;;
+		r)	
+			local_run=1
+			;;
 	esac
 	shift
 done
 
-echo "- - - - - - - - - - - - - -" >&2
+
+local_prefix="${1:-out}"
+
+echo "- - - - - - - - - - - - - - - -" >&2
 xrandr | grep current | sed "s/.*current \([0-9]*\) x \([0-9]*\),.*/Screen: \1x\2/" >&2
 
 while read line
@@ -58,7 +64,13 @@ do
 	output_dim[${local_count}]="${parsed_line[0]//:/_}"
 	local_count=$(( ${local_count} + 1 ))
 done < <( xrandr | grep \ connected\  | sed "s/\([^[:space:]]*\)[^0-9]*\([^x]*\)x\([^+]*\)+\([^+]*\)+\([^[:space:]]*\).*/\2:\3:\4:\5 \1/" )
-echo "- - - - - - - - - - - - - -" >&2
+echo >&2 
+echo " - - - - Capabilities - - - - -" >&2
+echo "sudo setcap cap_sys_admin+ep $(which ffmpeg)" >&2
+echo "sudo setcap -r $(which ffmpeg)" >&2
+echo "getcap $(which ffmpeg)" >&2
+echo >&2 
+echo "- - - - - - - - - - - - - - - -" >&2
 echo >&2
 
 local_command="ffmpeg -device /dev/dri/card0 -f kmsgrab -i - -filter_complex \"hwmap=derive_device=vaapi,split=${local_count}"
@@ -73,12 +85,7 @@ done
 
 local_command="${local_command}$local_filter\" ${local_output}"
 
+[ ${local_run} -eq 1 ] && echo "#!/bin/bash" >&2 && echo ${local_command} >&2
+
 echo "#!/bin/bash"
 echo ${local_command}
-
-echo >&2 
-echo " - - - - Capabilities - - - - -" >&2
-echo "sudo setcap cap_sys_admin+ep $(which ffmpeg)" >&2
-echo "sudo setcap -r $(which ffmpeg)" >&2
-echo "getcap $(which ffmpeg)" >&2
-
