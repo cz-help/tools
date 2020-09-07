@@ -1,0 +1,21 @@
+#!/bin/bash
+lstart="${1:-$(date +%s)}"
+h_limit=${2:-60}
+s_limit="${3:-$(( ${h_limit} / 4 * 3 ))}"
+
+
+[ ${lstart} -lt $(( 5 * ${h_limit} )) ] && lstart=$(( $(date +%s) - 60 * ${lstart} ))
+
+while true
+do 
+	clear
+	date
+	echo " . . . (soft: ${s_limit} minutes / hard: ${h_limit} minutes)"
+	lval=$(( $(date +%s) - ${lstart} ))
+	sval="$(date -d @$(( ${lval} - 3600 )) +%H\:%M\:%S)"
+	[ ${lval} -le $(( ${s_limit} * 60 )) ] && echo -n -e "\e[32m${sval}\e[0m"
+	[ ${lval} -gt $(( ${s_limit} * 60 )) -a ${lval} -le $(( ${h_limit} * 60 )) ] && echo -n -e "\e[33m${sval}\e[0m"
+	[ ${lval} -gt $(( ${h_limit} * 60 )) ] && echo -n -e "\e[31m${sval}\e[0m"
+	echo " (from: $(date -d @${lstart} +%H\:%M\:%S) )"
+	sleep 1
+done
