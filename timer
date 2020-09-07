@@ -1,21 +1,165 @@
 #!/bin/bash
-lstart="${1:-$(date +%s)}"
 h_limit=${2:-60}
 s_limit="${3:-$(( ${h_limit} / 4 * 3 ))}"
 
+declare -A lstart lstop lcomment
 
-[ ${lstart} -lt $(( 5 * ${h_limit} )) ] && lstart=$(( $(date +%s) - 60 * ${lstart} ))
+function addTimerStart {
+	if [ "${2}" == 1 ]
+	then
+		iter=0
+		while [ "${lstart[${iter}]}" != "" ]
+		do
+			iter=$(( ${iter} + 1 ))
+		done
+		lstart[${iter}]=${1}
+		return ${iter}
+	fi
+	if [ "${1}" != "" ]
+	then
+		if [ ${1} -lt $(( 10 * ${h_limit} )) ] 
+		then
+			addTimerStart $(( $(date +%s) - 60 * ${1} )) 1
+			return $?
+		fi
+	fi
+	addTimerStart $(date +%s) 1
+	return $?
+}
+
+function addTimerStop {
+	if [ "${3}" == 1 ]
+	then
+		lstop[${2}]=${1}
+		return
+	fi
+	if [ "${1}" != "" ]
+	then
+		if [ ${1} -lt $(( 10 * ${h_limit} )) ] 
+		then
+			addTimerStop $(( $(date +%s) - 60 * ${1} )) ${2} 1
+			return
+		fi
+	fi
+	addTimerStop $(date +%s) ${2} 1
+}
+
+function setTimerComment {
+	[ "${1}" == "" ] && return
+	lcomment[${1}]="${2}"
+}
+
+function delTimer {
+	echo "${1}"
+	[ "${1}" == "" ] && return
+	unset lstop[${1}] lstart[${1}]
+}
+
+function printTimer {
+		if [ "${1}" == "-" ]
+		then
+			date
+			echo " . . . (soft: ${s_limit} minutes / hard: ${h_limit} minutes)"
+			return
+		fi	
+		if [ "${lstop[${1}]}" == "" ] 
+		then
+			lval=$(( $(date +%s) - ${lstart[${1}]} ))
+		else
+			lval=$(( ${lstop[${1}]} - ${lstart[${1}]} ))
+		fi
+		sval="$(date -d @$(( ${lval} - 3600 )) +%H\:%M\:%S)"
+		echo -n "[${1}]: "
+		[ ${lval} -le $(( ${s_limit} * 60 )) ] && echo -n -e "\e[32m${sval}\e[0m"
+		[ ${lval} -gt $(( ${s_limit} * 60 )) -a ${lval} -le $(( ${h_limit} * 60 )) ] && echo -n -e "\e[33m${sval}\e[0m"
+		[ ${lval} -gt $(( ${h_limit} * 60 )) ] && echo -n -e "\e[31m${sval}\e[0m"
+		echo -n " ( $(date -d @${lstart[${1}]} +%H\:%M\:%S) "
+		[ "${lstop[${1}]}" != "" ] && echo -n "- $(date -d @${lstop[${1}]} +%H\:%M\:%S) "
+		echo -n ")"
+		[ "${lcomment[${1}]}" != "" ] && echo -n " : ${lcomment[${key}]}"
+		echo
+}
+
+function dumpTimer {
+	lDelimiter="${2:-;}"
+	if [ "${1}" == "-" ]
+	then
+		echo "start${lDelimiter}stop${lDelimiter}comment"
+		return
+	fi
+	echo "${lstart[${1}]}${lDelimiter}${lstop[${1}]}${lDelimiter}${lcomment[${1}]}"
+}
+
+addTimerStart ${1}
 
 while true
 do 
 	clear
-	date
-	echo " . . . (soft: ${s_limit} minutes / hard: ${h_limit} minutes)"
-	lval=$(( $(date +%s) - ${lstart} ))
-	sval="$(date -d @$(( ${lval} - 3600 )) +%H\:%M\:%S)"
-	[ ${lval} -le $(( ${s_limit} * 60 )) ] && echo -n -e "\e[32m${sval}\e[0m"
-	[ ${lval} -gt $(( ${s_limit} * 60 )) -a ${lval} -le $(( ${h_limit} * 60 )) ] && echo -n -e "\e[33m${sval}\e[0m"
-	[ ${lval} -gt $(( ${h_limit} * 60 )) ] && echo -n -e "\e[31m${sval}\e[0m"
-	echo " (from: $(date -d @${lstart} +%H\:%M\:%S) )"
-	sleep 1
+	printTimer -
+	for key in ${!lstart[@]}
+	do
+		printTimer ${key}
+	done
+	read -s -n 1 -t 1 command
+	case ${command} in
+		a)
+			read -t 5 -p "Provide shift in minutes (0 for now) : " newTimer
+			[ "${newTimer}" != "" ] && addTimerStart ${newTimer}
+			;;
+		d)
+			read -t 5 -p "Timer id to delete : " timerId
+			[ "${timerId}" != "" ] && delTimer ${timerId}
+			;;
+		l)
+			echo "provide the timers to load. Lines not starting with number will be ignored. End of file can be send by CTRL+D :"
+			iter=0
+			for key in ${!lstart[@]}
+			do
+				[ ${key} -gt ${iter} ] && iter=${key}
+			done
+			iter=$(( ${iter} + 1 ))
+			while read line
+			do
+				case ${line:0:1} in
+					[0-9])
+						lstart[${iter}]=$(echo -n ${line} | cut -d \; -f 1)
+						lstop[${iter}]=$(echo -n ${line} | cut -d \; -f 2)
+						lcomment[${iter}]="$(echo -n ${line} | cut -d \; -f 3-)"
+						iter=$(( ${iter} + 1 ))
+						;;
+				esac
+			done < <(cat)
+			;;
+		q)
+			clear
+                        dumpTimer - >&2
+                        for key in ${!lstart[@]}
+                        do
+                                dumpTimer ${key} >&2
+                        done
+			echo " = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =" >&2
+			printTimer -
+			for key in ${!lstart[@]}
+			do
+				[ "${lstop[${key}]}" == "" ] && addTimerStop 0 ${key}
+				printTimer ${key}
+			done
+			exit 0
+			;;
+		s)
+			read -t 5 -p "Timer id to stop : " timerId
+			read -t 5 -p "Provide shift in minutes (0 for now) : " stopTime
+			[ "${timerId}" != "" -a "${stopTime}" != ""  ] && addTimerStop ${stopTime} ${timerId}
+			;;
+		r)
+			read -t 5 -p "Timer id to continue (from oridinal time): " timerId
+			[ "${timerId}" != "" ] && unset lstop[${timerId}]
+			;;
+		c)
+			read -t 5 -p "Timer id to set the comment : " timerId
+			read -t 10 -p "Comment : " comment
+			[ "${timerId}" != "" ] && setTimerComment ${timerId} ${comment}
+			;;
+			
+	esac
 done
