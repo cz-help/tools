@@ -9,6 +9,7 @@ local_output=""
 local_timestamp="$(date +%s)"
 local_command=""
 local_run=0
+local_fps=30
 
 while [ "${1:0:1}" == "-" ]
 do
@@ -21,6 +22,10 @@ do
 			checkpoint_x[${#checkpoint_x[@]}]=${2}
 			checkpoint_y[${#checkpoint_y[@]}]=${3}
 			shift 2
+			;;
+		f)
+			local_fps=${2};
+			shift
 			;;
 		r)	
 			local_run=1
@@ -73,7 +78,7 @@ echo >&2
 echo "- - - - - - - - - - - - - - - -" >&2
 echo >&2
 
-local_command="ffmpeg -device /dev/dri/card0 -f kmsgrab -i - -filter_complex \"hwmap=derive_device=vaapi,split=${local_count}"
+local_command="ffmpeg -device /dev/dri/card0 -f kmsgrab -i - -r ${local_fps} -filter_complex \"hwmap=derive_device=vaapi,split=${local_count}"
 
 i=0
 while [ $i -lt ${local_count} ]

@@ -158,7 +158,7 @@ do
 		c)
 			read -t 5 -p "Timer id to set the comment : " timerId
 			read -t 10 -p "Comment : " comment
-			[ "${timerId}" != "" ] && setTimerComment ${timerId} ${comment}
+			[ "${timerId}" != "" ] && setTimerComment ${timerId} "${comment}"
 			;;
 			
 	esac

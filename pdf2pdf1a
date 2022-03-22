@@ -1,0 +1,40 @@
+#!/bin/bash
+
+do_option=gs
+l_verbose=0
+
+while [ "${1:0:1}" = "-" ]
+do
+	case ${1:1:1} in
+		o)
+			do_option=${1:2}
+			;;
+		v)
+			l_verbose=1
+			;;
+		h)
+			echo "${0} [-oX] [-l] source.pdf [dest.pdf]"
+			echo -e "\tsource.pdf\tsource file"
+			echo -e "\tdest.pdf\tdestination file, if not set the name will be \"1a_<source.pdf>\""
+			echo -e "\t-v\t\tverbose"
+			echo -e "\t-oX\t\toption, accepted values are:"
+			echo -e "\t\tgs\tghostscript (default)"
+			echo -e "\t\tps2pdf\tps2pdf"
+			echo
+			echo "example: ${0} -ops2pdf original.pdf new.pdf"
+			exit 0
+			;;
+	esac
+	shift
+done
+
+[ ${l_verbose} -eq 1 ] && set -x
+
+case ${do_option} in
+	ps2pdf)
+		pdf2ps ${1} - | ps2pdf -dPDFA -sProcessColorModel=DeviceCMYK -dUseCIEColor - ${2:-1a_${1}}
+		;;
+	*)
+		gs -dPDFA -dBATCH -dNOPAUSE -dUseCIEColor -sProcessColorModel=DeviceCMYK -sDEVICE=pdfwrite -sPDFACompatibilityPolicy=1 -sOutputFile=${2:-1a_${1}} ${1}
+		;;
+esac

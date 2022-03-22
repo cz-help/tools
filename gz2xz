@@ -1,11 +1,16 @@
 #!/bin/bash
 option=""
+localThreadCount=2
 
 while [ "${1:0:1}" == "-" ]
 do
 	case ${1:1} in
 		m)
 			option="${option} -maxdepth ${2}"
+			shift
+			;;
+		t)
+			localThreadCount=${2}
 			shift
 			;;
 	esac
@@ -32,7 +37,7 @@ then
 		else
 			echo "${l_s}.gz (${current} / ${total_count} )"
 		fi
-		gunzip -c ${l_s}.gz | xz -z9evc -T 2 >${l_s}.xz
+		gunzip -c ${l_s}.gz | xz -z9evc -T ${localThreadCount} >${l_s}.xz
 		if  [[ $? -eq 0 ]]
 		then
 			touch -r ${l_s}.gz ${l_s}.xz
@@ -68,7 +73,7 @@ then
                         echo "${l_s}.tgz (${current} / ${total_count} )"
                 fi
 
-		gunzip -c ${l_s}.tgz | xz -z9evc >${l_s}.tar.xz
+		gunzip -c ${l_s}.tgz | xz -z9evc -T ${localThreadCount} >${l_s}.tar.xz
 		if  [[ $? -eq 0 ]]
 		then
 			touch -r ${l_s}.tgz ${l_s}.tar.xz
