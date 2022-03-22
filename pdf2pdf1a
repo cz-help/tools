@@ -6,6 +6,20 @@ l_verbose=0
 while [ "${1:0:1}" = "-" ]
 do
 	case ${1:1:1} in
+		j)	# offtopic : merge more files
+			[ ${l_verbose} -eq 1 ] && set -x
+			l_output=${2}
+			shift 2
+			gs -dNOPAUSE -sDEVICE=pdfwrite -sOUTPUTFILE=${l_output} "${@}"
+			exit 0
+			;;
+		c)	# offtopic : cut the page(s)
+			l_start=${2}
+			l_end=${3}
+			[ ${l_verbose} -eq 1 ] && set -x
+			gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -dFirstPage=${l_start} -dLastPage=${l_end} -sOutputFile=${5:-${l_start}-${l_end}_${4}} ${4}
+			exit 0
+			;;
 		o)
 			do_option=${1:2}
 			;;
@@ -13,6 +27,7 @@ do
 			l_verbose=1
 			;;
 		h)
+			echo
 			echo "${0} [-oX] [-l] source.pdf [dest.pdf]"
 			echo -e "\tsource.pdf\tsource file"
 			echo -e "\tdest.pdf\tdestination file, if not set the name will be \"1a_<source.pdf>\""
@@ -22,6 +37,15 @@ do
 			echo -e "\t\tps2pdf\tps2pdf"
 			echo
 			echo "example: ${0} -ops2pdf original.pdf new.pdf"
+			echo " - - - - - - - - - - - - - -"
+			echo "${0} [-v] -c <start> <end> <source.pdf> [<dest.pdf>]"
+                        echo -e "\tsource.pdf\tsource file"
+                        echo -e "\tdest.pdf\tdestination file, if not set the name will be \"1a_<source.pdf>\""
+                        echo -e "\t-v\t\tverbose"
+			echo
+			echo "example: ${0} -c 1 2 original.pdf new.pdf"
+			echo " - - - - - - - - - - - - - -"
+			echo "${0} [-v] -j <dest.pdf> <source1.pdf> [<sourceN.pdf>]"
 			exit 0
 			;;
 	esac
