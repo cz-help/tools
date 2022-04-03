@@ -10,7 +10,7 @@ do
 			[ ${l_verbose} -eq 1 ] && set -x
 			l_output=${2}
 			shift 2
-			gs -dNOPAUSE -sDEVICE=pdfwrite -sOUTPUTFILE=${l_output} "${@}"
+			gs -dNOPAUSE -dBATCH -sDEVICE=pdfwrite -sOUTPUTFILE=${l_output} "${@}"
 			exit 0
 			;;
 		c)	# offtopic : cut the page(s)

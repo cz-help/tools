@@ -1,0 +1,19 @@
+#!/bin/bash
+#######################################################
+# # https://github.com/sanmai/usb-scale-reader.git  # #
+# cd example
+# gmake
+# cp usbscale ~/bin
+#######################################################
+
+####### udev rule #####################################
+# # # # /etc/udev/rules.d/98-dymo-scale.rules # # # # #
+#
+# ATTRS{manufacturer}=="DYMO", ATTRS{product}=="M5   5 kg Digital Postal Scale", ATTRS{idVendor}=="0922", ATTRS{idProduct}=="8003", MODE="0660", GROUP="wheel"
+# KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0922", ATTRS{idProduct}=="8003", SYMLINK+="dymo-scale"
+#
+# # # # # # #
+# udevadm control --reload-rules
+#######################################################
+
+usbscale /dev/dymo-scale 
