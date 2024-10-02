@@ -1,9 +1,10 @@
 #!/bin/bash
+
 [ -e /ramdisk ] && mount_prefix="/ramdisk" || mount_prefix="/mnt"
-[ ! -e ${HOME}/secure ] && mkdir ${HOME}/secure
+location="${HOME}/secure"
 
 handle_secure_store() {
-	if [ $(losetup | grep ${HOME}/secure/${1} | wc -l) -eq 1 ]
+	if [ $(losetup | grep ${location}/${1} | wc -l) -eq 1 ]
 	then
 		if [ -e ${mount_prefix}/secure-${1} ]
 		then
@@ -17,7 +18,7 @@ handle_secure_store() {
 	                sudo cryptsetup close secure-${1}
 		fi
 	else
-		sudo cryptsetup open ${HOME}/secure/${1} secure-${1}
+		sudo cryptsetup open ${location}/${1} secure-${1}
 		[ ! -e ${mount_prefix}/secure-${1} ] && mkdir ${mount_prefix}/secure-${1}
 		sudo mount /dev/mapper/secure-${1} ${mount_prefix}/secure-${1}
 		df -h ${mount_prefix}/secure-${1}
@@ -31,27 +32,34 @@ do
 			read -p "Allocate new secure store (y for yes): " local_answer
 			echo ${local_answer}
 			[ "${local_answer}" != "y" ] && exit 1
-			[ -e ${HOME}/secure/${2} ] && exit 2
-			fallocate -l ${3} ${HOME}/secure/${2}
-			dd if=/dev/random of=${HOME}/secure/temp_key.sec bs=512 count=1
-			cryptsetup luksFormat ${HOME}/secure/${2} ${HOME}/secure/temp_key.sec
-			sudo cryptsetup luksOpen --key-file=${HOME}/secure/temp_key.sec ${HOME}/secure/${2} ${2}
+			[ -e ${location}/${2} ] && exit 2
+			[ ! -e ${location} ] && mkdir -p ${location}
+			fallocate -l ${3} ${location}/${2}
+			dd if=/dev/random of=${location}/${2}.key bs=512 count=1
+			cryptsetup luksFormat ${location}/${2} ${location}/${2}.key
+			sudo cryptsetup luksOpen --key-file=${location}/${2}.key ${location}/${2} ${2}
 			sudo mkfs.ext3 -m 1 -L "${2}" /dev/mapper/${2}
 			sudo cryptsetup close ${2}
-			sudo cryptsetup luksAddKey --key-file=${HOME}/secure/temp_key.sec ${HOME}/secure/${2}
-			if [ $(cryptsetup luksDump ${HOME}/secure/${2} | grep Key: | wc -l) -gt 1 ] 
+			sudo cryptsetup luksAddKey --key-file=${location}/${2}.key ${location}/${2}
+			if [ $(cryptsetup luksDump ${location}/${2} | grep Key: | wc -l) -gt 1 ]
 			then
-				sudo cryptsetup luksRemoveKey --key-file=${HOME}/secure/temp_key.sec ${HOME}/secure/${2} 0
-				rm ${HOME}/secure/temp_key.sec
-			else
-				mv ${HOME}/secure/temp_key.sec ${HOME}/secure/${2}.key
+				sudo cryptsetup luksRemoveKey --key-file=${location}/${2}.key ${location}/${2} 0
+				rm ${location}/${2}.key
 			fi
 			${0} ${2}
 			[ $(df -h | grep ${mount_prefix}/secure-${2} | wc -l) -eq 1 ] && sudo chown $(id -u):$(id -g) ${mount_prefix}/secure-${2}
 			exit 0
 			;;
+		s)
+			location="${2}"
+			shift
+			;;
+		d)
+			mount_prefix="${2}"
+			shift
+			;;
 	esac
 	shift 
 done
 
-[ "${1}" != "" -a -e ${HOME}/secure/${1} ] && handle_secure_store ${1} || echo "Secure store \"${1}\" does not exist..."
+[ "${1}" != "" -a -e ${location}/${1} ] && handle_secure_store ${1} || echo "Secure store \"${1}\" does not exist..."

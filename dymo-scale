@@ -16,4 +16,4 @@
 # udevadm control --reload-rules
 #######################################################
 
-usbscale /dev/dymo-scale 
+usbscale /dev/dymo-scale | tee /dev/tty | xclip -selection c
