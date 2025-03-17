@@ -1,12 +1,16 @@
 #!/bin/bash
 
+pathPrefix="/tmp/"
+
+[ -e "/ramdisk/" ] && pathPrefix="/ramdisk/"
+
 for a in {a..z}
 do 
 	for b in {a..z}
 	do 
-		if [ ! -e "/ramdisk/${a}${b}" ]
+		if [ ! -e "/${pathPrefix}/${a}${b}" ]
 		then
-			currentPath="/ramdisk/${a}${b}"
+			currentPath="/${pathPrefix}/${a}${b}"
 			echo " Processing in ${currentPath}"
 			echo " . . . . "
 			git archive --prefix=/ ${1:-HEAD} | ( mkdir ${currentPath} && cd ${currentPath} && tar -xv )
