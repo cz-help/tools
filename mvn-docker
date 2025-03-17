@@ -1,0 +1,22 @@
+#!/bin/bash
+
+for a in {a..z}
+do 
+	for b in {a..z}
+	do 
+		if [ ! -e "/ramdisk/${a}${b}" ]
+		then
+			currentPath="/ramdisk/${a}${b}"
+			echo " Processing in ${currentPath}"
+			echo " . . . . "
+			git archive --prefix=/ ${1:-HEAD} | ( mkdir ${currentPath} && cd ${currentPath} && tar -xv )
+			docker run --rm -ti -v ${currentPath}:/usr/src/project -w /usr/src/project maven:3.9.9-eclipse-temurin-${2:-21}-alpine mvn clean install
+			echo " . . . . "
+			ls -la ${currentPath}/target
+			echo " . . . . "
+			echo ${currentPath}/target
+			echo "find ${currentPath} -type d | grep -v \"^${currentPath}$\|^${currentPath}/target\" | xargs rm -rf"
+			exit 0
+		fi
+	done
+done
