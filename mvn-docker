@@ -13,10 +13,10 @@ do
 	do 
 		for c in {a..z}
 		do
-			# setting variable with "current" path to test
+			# Setting variable with "current" path to test
 			currentPath="${pathPrefix}${a}${b}${c}"
 
-			# check if the path can be used (doesn't exists yet)
+			# Check if the path can be used (doesn't exists yet)
 			if [ ! -e "${currentPath}" ]
 			then
 				echo " Processing in ${currentPath}"
@@ -24,18 +24,18 @@ do
 				echo " . . . . "
 				git archive --prefix=/ ${1:-HEAD} | tar -xvC ${currentPath}
 
-				#run the mvn in the container (as a root - default in the image)
+				# Run the mvn in the container (as a root - default in the image)
 				docker run --rm -ti -v ${currentPath}:/usr/src/project -w /usr/src/project maven:3.9.9-eclipse-temurin-${2:-21}-alpine mvn clean install
 
-				# change newly created files' ownership to current user on the host system (out of the container - you )
+				# Change newly created files' ownership to current user on the host system (out of the container - you )
 				docker run --rm -ti -v ${currentPath}:/usr/src/project -w /usr/src/project maven:3.9.9-eclipse-temurin-${2:-21}-alpine chown -R $(id -u):$(id -g) .
 				echo " . . . . "
 
-				# ist the output of the build
+				# List the output of the build
 				ls -la ${currentPath}/target
 				echo " . . . . "
 
-				# show the path where the files has been created
+				# Show the path where the files has been created
 				echo ${currentPath}/target
 
 				# Offer (do not execute automatically) the command to clean up the structure exept the target
