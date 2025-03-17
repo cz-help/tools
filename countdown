@@ -1,0 +1,23 @@
+#!/bin/bash
+while [ "${1:0:1}" = "-" ]
+do
+	case ${1:1} in
+		h)
+			echo -e "${0} <seconds>\trun starting with <seconds>"
+			;;
+	esac
+	shift
+done
+
+seconds=${1:-0}
+s_start=$(date +%s)
+echo "Start count down with ${seconds} seconds ... / $(date -d @${s_start}) - $(date -d @$(( ${s_start} + ${seconds} )))"
+echo
+while [ ${seconds} -gt 0 ]
+do
+	echo -n -e "\e[1A\e[K"
+	date +%H:%M:%S -u -d @${seconds}
+	sleep 1
+	seconds=$(( ${seconds} - 1 ))
+done
+echo -e "\e[1A\e[KDone..."
