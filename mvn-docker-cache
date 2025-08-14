@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# Set default path prefix to tmp (should exists all the time)
+pathPrefix="/tmp/"
+
+# Set the variable
+commitToBuild="${1:-HEAD}"
+javaVer="${2:-21}"
+shift 2
+
+# Check if /ramdisk exists. It is set for use if exist.
+[ -e "/ramdisk/" ] && pathPrefix="/ramdisk/"
+
+[ ! -e ${pathPrefix}/temp_m2 ] && mkdir ${pathPrefix}/temp_m2
+
+# "dynamic" part of the path generation...
+for a in {a..z}
+do 
+	for b in {a..z}
+	do 
+		for c in {a..z}
+		do
+			# Setting variable with "current" path to test
+			currentPath="${pathPrefix}${a}${b}${c}"
+
+			# Check if the path can be used (doesn't exists yet)
+			if [ ! -e "${currentPath}" ]
+			then
+				echo " Processing in ${currentPath}"
+				mkdir ${currentPath}
+				echo " . . . . "
+				if [ "-" == "${commitToBuild}" ]
+				then
+					tar -c . | tar -xvC ${currentPath}
+				else
+					git archive --prefix=/ ${commitToBuild} | tar -xvC ${currentPath}
+				fi
+
+				# Run the mvn in the container (as a root - default in the image)
+				if [ "${1}" == "" ]
+				then
+					docker run --rm -ti -v ${pathPrefix}/temp_m2:/root/.m2 -v ${currentPath}:/usr/src/project -w /usr/src/project maven:3.9.9-eclipse-temurin-${javaVer}-alpine mvn clean install
+				else
+					docker run --rm -ti -v ${pathPrefix}/temp_m2:/root/.m2 -v ${currentPath}:/usr/src/project -w /usr/src/project maven:3.9.9-eclipse-temurin-${javaVer}-alpine "${@}"
+				fi
+
+				# Change newly created files' ownership to current user on the host system (out of the container - you )
+				docker run --rm -ti -v ${currentPath}:/usr/src/project -w /usr/src/project maven:3.9.9-eclipse-temurin-${javaVer}-alpine chown -R $(id -u):$(id -g) .
+				echo " . . . . "
+
+				# List the output of the build
+				ls -la ${currentPath}/target
+				echo " . . . . "
+
+				# Show the path where the files has been created
+				echo ${currentPath}/target
+
+				# Offer (do not execute automatically) the command to clean up the structure exept the target
+				echo "find ${currentPath} -type d | grep -v \"^${currentPath}$\|^${currentPath}/target\" | xargs rm -rf"
+				exit 0
+			fi
+		done
+	done
+done
