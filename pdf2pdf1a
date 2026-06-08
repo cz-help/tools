@@ -20,6 +20,13 @@ do
 			gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -dFirstPage=${l_start} -dLastPage=${l_end} -sOutputFile=${5:-${l_start}-${l_end}_${4}} ${4}
 			exit 0
 			;;
+		s)	# offtopic : make the file smaller - compress
+			[ ${l_verbose} -eq 1 ] && set -x
+                        l_output=${2}
+                        shift 2
+			gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/printer -dNOPAUSE -dQUIET -dBATCH -sOutputFile=${l_output} ${1}
+			exit 0
+			;;
 		o)
 			do_option=${1:2}
 			;;
@@ -46,6 +53,10 @@ do
 			echo "example: ${0} -c 1 2 original.pdf new.pdf"
 			echo " - - - - - - - - - - - - - -"
 			echo "${0} [-v] -j <dest.pdf> <source1.pdf> [<sourceN.pdf>]"
+			echo
+			echo " - - - - - - - - - - - - - -"
+			echo " make the file smaller - compress"
+			echo "${0} [-v] -s <dest.pdf> <source1.pdf>"
 			exit 0
 			;;
 	esac
