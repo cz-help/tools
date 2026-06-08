@@ -1,0 +1,76 @@
+#!/bin/bash
+
+dockerNetwork=0
+promisc=0
+interface=0
+module=0
+
+defInt=$(ip r | grep default | head -1 |sed "s/.*dev \([^[:space:]]*\) proto.*/\1/")
+
+if [ $( lsmod  | grep -c 8021q ) -eq 0 ] 
+then
+	sudo modprobe 8021q
+	module=1
+	echo "module loaded..."
+else
+	echo "module already loaded..."
+fi
+if [ $( ip -br a | grep -c "${1:-${defInt}}.${2:-2666}@" ) -eq 0 ]
+then
+	sudo ip link add link ${1:-${defInt}} name ${1:-${defInt}}.${2:-2666} type vlan id ${2:-2666}
+	sudo ip link set dev ${1:-${defInt}}.${2:-2666} up
+	interface=1
+	echo "interface added..."
+else
+	echo "interface already exists..."
+fi
+
+if [ $( ip link | grep ${1:-${defInt}}.${2:-2666}@ | grep -c PROMISC ) -eq 0 ]
+then
+	sudo ip link set ${1:-${defInt}}.${2:-2666} promisc on
+	echo "Setting promisc on the interface..."
+	promisc=1
+else
+	echo "interface is ready..."
+fi
+
+if [ $( docker network inspect vlan${2:-2666}_net 2>/dev/null | grep -c "\"parent\": \"${1:-${defInt}}.${2:-2666}\"" ) -eq 0 ]
+then
+	docker network create -d macvlan --subnet 192.168.88.0/24 --gateway 192.168.88.1 -o parent=${1:-${defInt}}.${2:-2666} vlan${2:-2666}_net
+	echo "docker network created..."
+	dockerNetwork=1
+else
+	echo "docker network already exists..."
+fi
+
+docker run --rm -ti -v .:/mnt:ro --name vlanNetworkBasedContainer --network vlan${2:-2666}_net --ip 192.168.88.10  alpine:latest
+
+if [ ${dockerNetwork} -eq 1 ]
+then
+	echo "removing docker network..."
+	docker network rm vlan${2:-2666}_net
+else
+	echo "keeping docker network..."
+fi
+if [ ${promisc} -eq 1 ]
+then
+	echo "unset promisc on ${1:-${defInt}}.${2:-2666}"
+	sudo ip link set ${1:-${defInt}}.${2:-2666} promisc off
+else
+	echo "keeping promisc on ${1:-${defInt}}.${2:-2666}"
+fi
+if [ ${interface} -eq 1 ]
+then
+	echo "removing the vlan link"
+	sudo ip link delete ${1:-${defInt}}.${2:-2666} type vlan id ${2:-2666}
+else
+	echo "keeping the vlan link"
+fi
+if [ ${module} -eq 1 ] 
+then
+	echo "removing the kernel module..."
+	rmmod 8021q
+else
+	echo "keeping the kernel module..."
+fi
+
